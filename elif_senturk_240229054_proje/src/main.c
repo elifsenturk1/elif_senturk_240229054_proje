@@ -3,44 +3,33 @@
 #include <allegro5/allegro_primitives.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "card.h"
 
 #define SCREEN_W 800
 #define SCREEN_H 600
 #define FPS      60.0
 
-int main(int argc, char **argv) {
-    if (!al_init()) {
-        fprintf(stderr, "Allegro baslatılamadı!\n");
-        return 1;
-    }
-    if (!al_init_primitives_addon()) {
-        fprintf(stderr, "Primitives yuklenemedi!\n");
-        return 1;
-    }
-    if (!al_install_mouse()) {
-        fprintf(stderr, "Mouse yuklenemedi!\n");
-        return 1;
-    }
-    if (!al_install_keyboard()) {
-        fprintf(stderr, "Klavye yuklenemedi!\n");
-        return 1;
-    }
+int main(void) {
+    if (!al_init())                  { fprintf(stderr, "al_init failed\n");    return 1; }
+    if (!al_init_primitives_addon()) { fprintf(stderr, "primitives failed\n"); return 1; }
+    if (!al_install_mouse())         { fprintf(stderr, "mouse failed\n");      return 1; }
+    if (!al_install_keyboard())      { fprintf(stderr, "keyboard failed\n");   return 1; }
+    al_init_font_addon();
 
     ALLEGRO_DISPLAY     *display = al_create_display(SCREEN_W, SCREEN_H);
     ALLEGRO_EVENT_QUEUE *queue   = al_create_event_queue();
     ALLEGRO_TIMER       *timer   = al_create_timer(1.0 / FPS);
 
-    if (!display || !queue || !timer) {
-        fprintf(stderr, "Pencere/queue/timer olusturulamadı!\n");
-        return 1;
-    }
-
     al_register_event_source(queue, al_get_display_event_source(display));
     al_register_event_source(queue, al_get_timer_event_source(timer));
     al_register_event_source(queue, al_get_keyboard_event_source());
+    al_register_event_source(queue, al_get_mouse_event_source());
 
     al_set_window_title(display, "Memory Card - Elif Senturk");
     al_start_timer(timer);
+
+    Card grid[GRID_ROWS][GRID_COLS];
+    card_init_grid(grid);
 
     bool running   = true;
     bool need_draw = true;
@@ -56,16 +45,23 @@ int main(int argc, char **argv) {
         } else if (ev.type == ALLEGRO_EVENT_KEY_DOWN) {
             if (ev.keyboard.keycode == ALLEGRO_KEY_ESCAPE)
                 running = false;
+        } else if (ev.type == ALLEGRO_EVENT_MOUSE_BUTTON_DOWN) {
+            for (int r = 0; r < GRID_ROWS; r++) {
+                for (int c = 0; c < GRID_COLS; c++) {
+                    Card *card = &grid[r][c];
+                    if (card->state == CARD_FACE_DOWN &&
+                        card_is_clicked(card, ev.mouse.x, ev.mouse.y)) {
+                        card->state = CARD_FACE_UP;
+                    }
+                }
+            }
         }
 
         if (need_draw && al_is_event_queue_empty(queue)) {
             al_clear_to_color(al_map_rgb(30, 30, 46));
-            ALLEGRO_FONT *font = al_create_builtin_font();
-            al_draw_text(font, al_map_rgb(255, 255, 255),
-                         SCREEN_W / 2, SCREEN_H / 2,
-                         ALLEGRO_ALIGN_CENTRE,
-                         "Memory Card - Hazir!");
-            al_destroy_font(font);
+            for (int r = 0; r < GRID_ROWS; r++)
+                for (int c = 0; c < GRID_COLS; c++)
+                    card_draw(&grid[r][c]);
             al_flip_display();
             need_draw = false;
         }
